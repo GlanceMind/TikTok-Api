@@ -6,6 +6,7 @@ from ..exceptions import InvalidResponseException
 
 if TYPE_CHECKING:
     from ..tiktok import TikTokApi
+    from .video import Video, SearchVideo
 
 
 class Search:
@@ -23,6 +24,7 @@ class Search:
         Args:
             search_term (str): The phrase you want to search for.
             count (int): The amount of users you want returned.
+            cursor (int): The offset of users from 0 you want to get.
 
         Returns:
             async iterator/generator: Yields TikTokApi.user objects.
@@ -40,6 +42,35 @@ class Search:
             search_term, "user", count=count, cursor=cursor, **kwargs
         ):
             yield user
+
+    @staticmethod
+    async def videos(search_term, count=10, cursor=0, **kwargs) -> AsyncIterator[SearchVideo]:
+        """
+        Searches for videos.
+
+        Note: Your ms_token needs to have done a search before for this to work.
+
+        Args:
+            search_term (str): The phrase you want to search for.
+            count (int): The amount of videos you want returned.
+            cursor (int): The offset of videos from 0 you want to get.
+
+        Returns:
+            async iterator/generator: Yields TikTokApi.video objects.
+
+        Raises:
+            InvalidResponseException: If TikTok returns an invalid response, or one we don't understand.
+
+        Example Usage:
+            .. code-block:: python
+
+                async for video in api.search.videos('david teather'):
+                    # do something
+        """
+        async for video in Search.search_type(
+            search_term, "item", count=count, cursor=cursor, **kwargs
+        ):
+            yield video
 
     @staticmethod
     async def search_type(
@@ -78,6 +109,11 @@ class Search:
                 "web_search_code": """{"tiktok":{"client_params_x":{"search_engine":{"ies_mt_user_live_video_card_use_libra":1,"mt_search_general_user_live_card":1}},"search_server":{}}}""",
             }
 
+            # Add extra kwargs to params, filtering out special keys
+            for key, value in kwargs.items():
+                if key not in ["headers", "session_index"]:
+                    params[key] = value
+
             resp = await Search.parent.make_request(
                 url=f"https://www.tiktok.com/api/search/{obj_type}/full/",
                 params=params,
@@ -101,7 +137,8 @@ class Search:
                     found += 1
             elif obj_type == "item":
                 for video in resp.get("item_list", []):
-                    yield Search.parent.video(data=video)
+                    yield Search.parent.search_video(data=video)
+                    found += 1
 
             if not resp.get("has_more", False):
                 return

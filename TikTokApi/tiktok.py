@@ -27,7 +27,7 @@ from .stealth import stealth_async
 from .helpers import random_choice
 
 from .api.user import User
-from .api.video import Video
+from .api.video import Video, SearchVideo
 from .api.sound import Sound
 from .api.hashtag import Hashtag
 from .api.comment import Comment
@@ -67,6 +67,7 @@ class TikTokApi:
 
     user = User
     video = Video
+    search_video = SearchVideo
     sound = Sound
     hashtag = Hashtag
     comment = Comment
@@ -96,6 +97,7 @@ class TikTokApi:
 
         User.parent = self
         Video.parent = self
+        SearchVideo.parent = self
         Sound.parent = self
         Hashtag.parent = self
         Comment.parent = self

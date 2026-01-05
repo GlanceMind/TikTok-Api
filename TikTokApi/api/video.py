@@ -349,3 +349,43 @@ class Video:
 
     def __str__(self):
         return f"TikTokApi.video(id='{getattr(self, 'id', None)}')"
+
+
+class SearchVideo:
+    """
+    A TikTok Video class for Search Results
+    """
+
+    parent: ClassVar[TikTokApi]
+
+    id: Optional[str]
+    desc: Optional[str]
+    create_time: Optional[datetime]
+    stats: Optional[dict]
+    author: Optional[User]
+    as_dict: dict
+
+    def __init__(self, data: dict = None):
+        self.as_dict = data
+        self.__extract_from_data()
+
+    def __extract_from_data(self) -> None:
+        data = self.as_dict
+        self.id = data.get("id")
+        self.desc = data.get("desc")
+
+        timestamp = data.get("createTime")
+        if timestamp is not None:
+            self.create_time = datetime.fromtimestamp(int(timestamp))
+
+        self.stats = data.get("stats")
+
+        author_data = data.get("author")
+        if author_data:
+            self.author = self.parent.user(data=author_data)
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return f"TikTokApi.search_video(id='{getattr(self, 'id', None)}', desc='{self.desc}')"

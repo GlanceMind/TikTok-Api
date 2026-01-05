@@ -137,7 +137,7 @@ async def search_video_with_comments():
                         proxies=proxies,  # Use proxy list for rotation
                         timeout=180000,
                         browser=browser_type,
-                        headless=True,
+                        headless=False,  # CRITICAL: False is more reliable (use with xvfb on server)
                         context_options=context_options,
                         override_browser_args=browser_args,
                         suppress_resource_load_types=['image', 'media', 'font'],

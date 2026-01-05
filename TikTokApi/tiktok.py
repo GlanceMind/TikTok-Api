@@ -353,6 +353,8 @@ class TikTokApi:
                 page = await page_factory(context)
             else:
                 page = await context.new_page()
+                # Set the navigation timeout BEFORE any navigation
+                page.set_default_navigation_timeout(timeout)
                 await stealth_async(page)
                 _ = await page.goto(url)
 
@@ -378,15 +380,14 @@ class TikTokApi:
                     ),
                 )
 
-            # Set the navigation timeout
-            page.set_default_navigation_timeout(timeout)
-
             # by doing this, we are simulate scroll event using mouse to `avoid` bot detection
             x, y = random.randint(0, 50), random.randint(0, 50)
             a, b = random.randint(1, 50), random.randint(100, 200)
 
             await page.mouse.move(x, y)
-            await page.wait_for_load_state("networkidle")
+            # Use 'domcontentloaded' instead of 'networkidle' for better proxy compatibility
+            # 'networkidle' can timeout with slow proxies, 'domcontentloaded' is more reliable
+            await page.wait_for_load_state("domcontentloaded")
             await page.mouse.move(a, b)
 
             session = TikTokPlaywrightSession(
@@ -523,21 +524,18 @@ class TikTokApi:
             self.browser = await self.playwright.chromium.launch(
                 headless=headless,
                 args=override_browser_args,
-                proxy=random_choice(proxies),
                 executable_path=executable_path,
             )
         elif browser == "firefox":
             self.browser = await self.playwright.firefox.launch(
                 headless=headless,
                 args=override_browser_args,
-                proxy=random_choice(proxies),
                 executable_path=executable_path,
             )
         elif browser == "webkit":
             self.browser = await self.playwright.webkit.launch(
                 headless=headless,
                 args=override_browser_args,
-                proxy=random_choice(proxies),
                 executable_path=executable_path,
             )
         else:

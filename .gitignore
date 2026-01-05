@@ -32,3 +32,4 @@ src
 /TikTok-Api.iml
 venv/**
 *.DS_STORE
+proxy_demo.py

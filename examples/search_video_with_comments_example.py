@@ -1,25 +1,76 @@
 import sys
 import os
+import json
 # Add parent directory to sys.path to import local TikTokApi package
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from TikTokApi import TikTokApi
 import asyncio
 
-# Set your own ms_token
-ms_token = os.environ.get("ms_token", None)
+# Load full cookies from tiktok_cookies.json (preferred method)
+def load_cookies():
+    """Load complete TikTok cookies from JSON file"""
+    cookies_file = os.path.join(os.path.dirname(__file__), '..', 'tiktok_cookies.json')
+    
+    if os.path.exists(cookies_file):
+        with open(cookies_file, 'r') as f:
+            cookies = json.load(f)
+            print(f"✓ Loaded {len(cookies)} cookies from {cookies_file}")
+            return cookies
+    else:
+        # Fallback to ms_token from environment variable
+        ms_token = os.environ.get("ms_token")
+        if ms_token:
+            print("⚠ Using ms_token from environment (full cookies recommended)")
+            return {"msToken": ms_token}
+        else:
+            print("⚠ No cookies found. Will attempt to auto-generate.")
+            return None
 
-# Proxy configuration from proxy_demo.py
-PROXY_TUNNEL = os.environ.get("PROXY_TUNNEL", "l273.kdlfps.com:18866")
-PROXY_USERNAME = os.environ.get("PROXY_USERNAME", "f2179606115")
-PROXY_PASSWORD = os.environ.get("PROXY_PASSWORD", "vwpbtnlp")
+# Load cookies
+cookies = load_cookies()
 
-# Format proxy for Playwright
-proxy_config = {
-    "server": f"http://{PROXY_TUNNEL}",
-    "username": PROXY_USERNAME,
-    "password": PROXY_PASSWORD,
-}
+# Load proxies from Webshare file
+def load_proxies():
+    """Load proxies from Webshare 10 proxies.txt file"""
+    proxies_file = os.path.join(os.path.dirname(__file__), '..', 'proxies.txt')
+    proxies = []
+    
+    if os.path.exists(proxies_file):
+        with open(proxies_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line:  # Skip empty lines
+                    continue
+                
+                # Parse format: IP:PORT:USERNAME:PASSWORD
+                parts = line.split(':')
+                if len(parts) == 4:
+                    ip, port, username, password = parts
+                    proxy = {
+                        "server": f"http://{ip}:{port}",
+                        "username": username,
+                        "password": password,
+                    }
+                    proxies.append(proxy)
+        
+        print(f"✓ Loaded {len(proxies)} proxies from {proxies_file}")
+        return proxies
+    else:
+        # Fallback to original proxy configuration
+        print("⚠ Webshare proxies file not found, using default proxy")
+        PROXY_TUNNEL = os.environ.get("PROXY_TUNNEL", "l273.kdlfps.com:18866")
+        PROXY_USERNAME = os.environ.get("PROXY_USERNAME", "f2179606115")
+        PROXY_PASSWORD = os.environ.get("PROXY_PASSWORD", "vwpbtnlp")
+        
+        return [{
+            "server": f"http://{PROXY_TUNNEL}",
+            "username": PROXY_USERNAME,
+            "password": PROXY_PASSWORD,
+        }]
+
+# Load proxies
+proxies = load_proxies()
 
 async def search_video_with_comments():
     """Search for videos and fetch comments with proxy support and retry logic"""
@@ -27,79 +78,167 @@ async def search_video_with_comments():
     max_retries = 3
     retry_delay = 5  # seconds
     
-    for attempt in range(1, max_retries + 1):
-        try:
-            print(f"Attempt {attempt}/{max_retries}: Creating TikTok API session with proxy...")
-            
-            async with TikTokApi() as api:
-                # Optimized configuration based on successful community solutions
-                await api.create_sessions(
-                    ms_tokens=[ms_token],
-                    num_sessions=1,
-                    sleep_after=5,  # Increased to allow more time for ms_token generation
-                    proxies=[proxy_config],
-                    timeout=180000,  # 180 seconds (3 minutes) for slow proxies
-                    browser=os.getenv("TIKTOK_BROWSER", "chromium"),
-                    headless=True,  # Set to True for remote servers without display
-                    override_browser_args=[
-                        '--disable-blink-features=AutomationControlled',  # Avoid detection
-                        '--disable-dev-shm-usage',  # Overcome limited resource problems
-                        '--no-sandbox',  # Required for root/server environments
+    # Try different browsers - webkit first (less detected), then chromium as fallback
+    browsers_to_try = [
+        os.getenv("TIKTOK_BROWSER", "webkit"),  # Default: webkit (often less detected)
+        "chromium",  # Fallback to chromium
+    ]
+    
+    for browser_type in browsers_to_try:
+        for attempt in range(1, max_retries + 1):
+            try:
+                print(f"\n{'='*60}")
+                print(f"Browser: {browser_type} | Attempt {attempt}/{max_retries}")
+                print(f"{'='*60}")
+                print("Creating TikTok API session with proxy and anti-detection measures...")
+                
+                async with TikTokApi() as api:
+                    # Advanced anti-detection configuration
+                    context_options = {
+                        # Spoof User-Agent to look like a real browser
+                        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                        # Set locale and timezone to match proxy region
+                        "locale": "en-US",
+                        "timezone_id": "America/New_York",
+                        # Set realistic viewport
+                        "viewport": {"width": 1920, "height": 1080},
+                        # Accept language
+                        "accept_downloads": True,
+                        "has_touch": False,
+                        "is_mobile": False,
+                        # Geolocation (optional, can help with consistency)
+                        # "geolocation": {"latitude": 40.7128, "longitude": -74.0060},
+                        # "permissions": ["geolocation"],
+                    }
+                    
+                    browser_args = [
+                        '--disable-blink-features=AutomationControlled',
+                        '--disable-dev-shm-usage',
+                        '--no-sandbox',
                         '--disable-setuid-sandbox',
-                        '--disable-gpu',  # Disable GPU for headless
-                    ],
-                    suppress_resource_load_types=['image', 'media', 'font'],  # Speed up loading
-                )
-                
-                print("✓ Session created successfully!")
-                
-                search_term = "旅伴匹配"
-                print(f"Searching for videos with term: {search_term}")
-                
-                async for video in api.search.videos(search_term, count=10, WebIdLastTime=0):
-                    print("=" * 40)
-                    print(f"Video ID: {video.id}")
-                    print(f"Description: {video.desc[:100]}..." if video.desc else "No description")
-                    print(f"Create Time: {video.create_time}")
-                    print(f"Author: {video.author.username if video.author else 'Unknown'}")
+                        '--disable-gpu',
+                        # Additional anti-detection args
+                        '--disable-web-security',
+                        '--disable-features=IsolateOrigins,site-per-process',
+                        '--disable-site-isolation-trials',
+                        # Randomize window size slightly
+                        '--window-size=1920,1080',
+                    ]
                     
-                    # Construct video link
-                    if video.author:
-                        video_url = f"https://www.tiktok.com/@{video.author.username}/video/{video.id}"
-                        print(f"Video Link: {video_url}")
+                    if browser_type == "webkit":
+                        # Webkit has different requirements - don't use --no-sandbox
+                        browser_args = []  # Keep minimal args for webkit
                     
-                    print("\nComments:")
-                    try:
-                        comment_count = 0
-                        async for comment in api.video(id=video.id).comments(count=5):
-                            print(f"  - [{comment.author.username}]: {comment.text}")
-                            comment_count += 1
-                        if comment_count == 0:
-                            print("  No comments found or requests failed.")
-                    except Exception as e:
-                        print(f"  Error fetching comments: {e}")
+                    # Use full cookies if available, otherwise let TikTokApi auto-generate
+                    await api.create_sessions(
+                        cookies=[cookies] if cookies else None,  # Use complete cookies
+                        num_sessions=1,  # Single session, will use one random proxy
+                        sleep_after=5,
+                        proxies=proxies,  # Use proxy list for rotation
+                        timeout=180000,
+                        browser=browser_type,
+                        headless=True,
+                        context_options=context_options,
+                        override_browser_args=browser_args,
+                        suppress_resource_load_types=['image', 'media', 'font'],
+                    )
+                    
+                    print("✓ Session created successfully!")
+                    print(f"  Using browser: {browser_type}")
+                    print(f"  Proxy pool: {len(proxies)} proxies available")
+                    if cookies:
+                        print(f"  Cookies: {len(cookies)} loaded")
+                        print(f"  msToken: {'✓' if 'msToken' in cookies else '✗'}")
+                    else:
+                        print(f"  Cookies: Auto-generating")
+                    
+                    search_term = "旅伴匹配"
+                    print(f"\nSearching for videos with term: {search_term}")
+                    
+                    video_count = 0
+                    async for video in api.search.videos(search_term, count=10, WebIdLastTime=0):
+                        video_count += 1
+                        print("\n" + "=" * 60)
+                        print(f"Video #{video_count}")
+                        print("=" * 60)
+                        print(f"Video ID: {video.id}")
+                        print(f"Description: {video.desc[:100]}..." if video.desc else "No description")
+                        print(f"Create Time: {video.create_time}")
+                        print(f"Author: {video.author.username if video.author else 'Unknown'}")
+                        
+                        if video.author:
+                            video_url = f"https://www.tiktok.com/@{video.author.username}/video/{video.id}"
+                            print(f"Video Link: {video_url}")
+                        
+                        print("\nFetching Comments:")
+                        try:
+                            comment_count = 0
+                            async for comment in api.video(id=video.id).comments(count=5):
+                                comment_count += 1
+                                comment_text = comment.text[:100] if len(comment.text) > 100 else comment.text
+                                print(f"  #{comment_count}. [{comment.author.username}]: {comment_text}")
+                            
+                            if comment_count == 0:
+                                print("  ⚠ No comments found (video may have no comments or request failed)")
+                            else:
+                                print(f"\n  ✓ Successfully fetched {comment_count} comments")
+                                
+                        except Exception as e:
+                            error_str = str(e)
+                            print(f"  ✗ Error fetching comments: {e}")
+                            
+                            # Provide specific troubleshooting for "empty response"
+                            if "empty response" in error_str.lower():
+                                print("\n  ⚠ TikTok detected bot activity. Suggestions:")
+                                print("    1. Ensure ms_token is set (export ms_token=YOUR_TOKEN)")
+                                print("    2. Proxy IP may be blacklisted - try different proxy")
+                                print("    3. Add delays between requests")
+                                print("    4. Current browser will try next attempt or webkit fallback")
 
-                    # Appropriate delay between processing videos
-                    await asyncio.sleep(2)
+                        # Appropriate delay between processing videos
+                        await asyncio.sleep(3)
+                    
+                    if video_count == 0:
+                        print("\n⚠ No videos found. This might indicate:")
+                        print("  - Search term has no results")
+                        print("  - TikTok is blocking the requests")
+                        print("  - Proxy/IP is restricted")
+                    else:
+                        print(f"\n✓ Successfully processed {video_count} videos")
+                    
+                    # If we get here, everything succeeded
+                    print(f"\n{'='*60}")
+                    print(f"✓ Completed successfully with {browser_type}")
+                    print(f"{'='*60}")
+                    return
+                    
+            except Exception as e:
+                error_msg = str(e)
+                print(f"\n✗ {browser_type} Attempt {attempt} failed: {error_msg}")
                 
-                # If we get here, everything succeeded
-                return
-                
-        except Exception as e:
-            error_msg = str(e)
-            print(f"✗ Attempt {attempt} failed: {error_msg}")
-            
-            if attempt < max_retries:
-                wait_time = retry_delay * attempt  # Exponential backoff
-                print(f"Retrying in {wait_time} seconds...")
-                await asyncio.sleep(wait_time)
-            else:
-                print(f"\n❌ Failed after {max_retries} attempts.")
-                print("\nTroubleshooting tips:")
-                print("1. Verify proxy is working: python3 proxy_demo.py")
-                print("2. Check if TikTokApi/tiktok.py has the timeout bug fix")
-                print("3. Try increasing timeout further or using a different proxy")
-                raise
+                if attempt < max_retries:
+                    wait_time = retry_delay * attempt
+                    print(f"⏳ Retrying in {wait_time} seconds...")
+                    await asyncio.sleep(wait_time)
+                else:
+                    print(f"\n✗ {browser_type} failed after {max_retries} attempts")
+                    if browser_type != browsers_to_try[-1]:
+                        print(f"→ Will try next browser: {browsers_to_try[browsers_to_try.index(browser_type)+1]}")
+                    break
+        
+        # If we successfully returned, we won't reach here
+        # This means all attempts with this browser failed, try next browser
+    
+    # If all browsers failed
+    print(f"\n❌ All browsers failed after {max_retries} attempts each.")
+    print("\n🔧 Troubleshooting checklist:")
+    print("  1. ✓ Verify proxy: python3 proxy_demo.py")
+    print("  2. ✓ Set ms_token: export ms_token=YOUR_MS_TOKEN")
+    print("     (Get from browser cookies after visiting tiktok.com)")
+    print("  3. ✓ Check TikTokApi/tiktok.py has both bug fixes applied")
+    print("  4. ✓ Try a different proxy service (current proxy may be blacklisted)")
+    print("  5. ✓ Verify proxy supports browser/HTTPS connections")
+    raise Exception("Failed to fetch data after trying all browsers and retries")
 
 if __name__ == "__main__":
     asyncio.run(search_video_with_comments())

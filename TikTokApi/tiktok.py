@@ -19,9 +19,19 @@ from playwright.async_api import (
     Error as PlaywrightError,
 )
 from urllib.parse import urlencode, quote, urlparse
-from proxyproviders import ProxyProvider
-from proxyproviders.algorithms import Algorithm
-from proxyproviders.models.proxy import ProxyFormat
+
+# Optional proxy providers support (not required for basic proxy lists)
+try:
+    from proxyproviders import ProxyProvider
+    from proxyproviders.algorithms import Algorithm
+    from proxyproviders.models.proxy import ProxyFormat
+    PROXYPROVIDERS_AVAILABLE = True
+except ImportError:
+    ProxyProvider = None
+    Algorithm = None
+    ProxyFormat = None
+    PROXYPROVIDERS_AVAILABLE = False
+
 
 from .stealth import stealth_async
 from .helpers import random_choice

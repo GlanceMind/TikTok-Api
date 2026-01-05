@@ -93,54 +93,17 @@ async def search_video_with_comments():
                 print("Creating TikTok API session with proxy and anti-detection measures...")
                 
                 async with TikTokApi() as api:
-                    # Advanced anti-detection configuration
-                    context_options = {
-                        # Spoof User-Agent to look like a real browser
-                        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                        # Set locale and timezone to match proxy region
-                        "locale": "en-US",
-                        "timezone_id": "America/New_York",
-                        # Set realistic viewport
-                        "viewport": {"width": 1920, "height": 1080},
-                        # Accept language
-                        "accept_downloads": True,
-                        "has_touch": False,
-                        "is_mobile": False,
-                        # Geolocation (optional, can help with consistency)
-                        # "geolocation": {"latitude": 40.7128, "longitude": -74.0060},
-                        # "permissions": ["geolocation"],
-                    }
-                    
-                    browser_args = [
-                        '--disable-blink-features=AutomationControlled',
-                        '--disable-dev-shm-usage',
-                        '--no-sandbox',
-                        '--disable-setuid-sandbox',
-                        '--disable-gpu',
-                        # Additional anti-detection args
-                        '--disable-web-security',
-                        '--disable-features=IsolateOrigins,site-per-process',
-                        '--disable-site-isolation-trials',
-                        # Randomize window size slightly
-                        '--window-size=1920,1080',
-                    ]
-                    
-                    if browser_type == "webkit":
-                        # Webkit has different requirements - don't use --no-sandbox
-                        browser_args = []  # Keep minimal args for webkit
-                    
-                    # Use full cookies if available, otherwise let TikTokApi auto-generate
+                    # Minimal configuration - matching official TikTok-Api examples
+                    # Complex parameters can actually trigger MORE detection!
                     await api.create_sessions(
-                        cookies=[cookies] if cookies else None,  # Use complete cookies
-                        num_sessions=1,  # Single session, will use one random proxy
-                        sleep_after=5,
-                        proxies=proxies,  # Use proxy list for rotation
-                        timeout=180000,
+                        cookies=[cookies] if cookies else None,
+                        num_sessions=1,
+                        sleep_after=3,  # Official examples use 3 seconds
+                        proxies=proxies,
                         browser=browser_type,
-                        headless=False,  # CRITICAL: False is more reliable (use with xvfb on server)
-                        context_options=context_options,
-                        override_browser_args=browser_args,
-                        suppress_resource_load_types=['image', 'media', 'font'],
+                        headless=False,  # Critical for avoiding detection
+                        # No context_options - let browser use defaults
+                        # No override_browser_args - avoid detection triggers
                     )
                     
                     print("✓ Session created successfully!")
